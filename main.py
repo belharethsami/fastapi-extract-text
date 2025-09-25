@@ -1,17 +1,3 @@
-'''
-main.py
-goal: create a single API endpoint that will take in an image (JPEG format only),
-       returns proper HTTP status codes and response formats, validates the input (file type and size),
-       processes the response via the Google Cloud Vision API, and make it easy to read.
-
-       Will plan to deploy to cloud run via a github repo (or building directly from local 
-       source and the gcloud CLI)
-
-       https://cloud.google.com/vision/docs/ocr#vision_text_detection-python and
-       https://cloud.google.com/docs/authentication/set-up-adc-local-dev-environment and
-
-
-'''
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 import time
@@ -30,7 +16,7 @@ async def limit_body_size(request: Request, call_next):
 
     if cl is not None and cl.isdigit() and int(cl) > MAX_BYTES:
         return JSONResponse(status_code=413, content= {"detail": "File larger than limit of 10 MB."})
-
+    return await call_next(request)
 
 @app.post("/extract-text")
 async def extractText(file: UploadFile = File(...)):

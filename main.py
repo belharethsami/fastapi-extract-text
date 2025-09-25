@@ -6,19 +6,34 @@ goal: create a single API endpoint that will take in an image (JPEG format only)
 
        Will plan to deploy to cloud run via a github repo (or building directly from local 
        source and the gcloud CLI)
+
+       https://cloud.google.com/vision/docs/ocr#vision_text_detection-python and
+       https://cloud.google.com/docs/authentication/set-up-adc-local-dev-environment and
+
+
 '''
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi.responses import JSONResponse
 import time
 from google.cloud import vision
 
 app = FastAPI()
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+# 10 MB converted to bytes. Will be used to set file size limit
+MAX_BYTES = 10 * 1024**2
+
+# middleware to make sure the file is less than 10 MB large
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+
+    cl = request.headers.get("content-length")
+
+    if cl is not None and cl.isdigit() and int(cl) > MAX_BYTES:
+        return JSONResponse(status_code=413, content= {"detail": "File larger than limit of 10 MB."})
+
 
 @app.post("/extract-text")
-async def extractText(file = File()):
+async def extractText(file: UploadFile = File(...)):
 
     # get the start time
     start_time = time.perf_counter()
@@ -36,7 +51,6 @@ async def extractText(file = File()):
     if not img_binary:
         raise HTTPException(status_code=400, detail="File is empty. Please upload a file with content.")
 
-
     # create the Vision API client
     # and return a 500 error if it fails
     try:
@@ -44,9 +58,9 @@ async def extractText(file = File()):
     except Exception as e:
         raise HTTPException(status_code=500, detail = f"Failed to create Vision API client. {e}")
     
-
     # create the vision image object
     image = vision.Image(content=img_binary)
+
 
     # call the OCR method (text detection)
     # return a 502 error if this fails due to the upstream server
@@ -64,10 +78,6 @@ async def extractText(file = File()):
     full_text = ""
     if response.full_text_annotation and response.full_text_annotation.text:
         full_text = response.full_text_annotation.text
-
-        
-
-
 
     # calculate total processing time
     end_time = time.perf_counter()
